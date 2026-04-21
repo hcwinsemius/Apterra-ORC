@@ -19,7 +19,7 @@ def parse_time_from_url(url, prefix="video_", suffix=".mp4"):
     timestr = file.split(prefix)[1].split(suffix)[0]
     if "_" in timestr:
         # apparently a datetime string is used
-        t = datetime.strptime(timestr, "%Y%m%d_%H%M%S")
+        t = datetime.strptime(timestr, "%Y%m%d_%H%M%S").replace(tzinfo=timezone.utc)
     else:
         t = datetime.fromtimestamp(float(timestr), timezone.utc)
     return t
