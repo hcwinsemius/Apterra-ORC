@@ -4,13 +4,37 @@ import os
 import requests
 
 from datetime import datetime, timedelta, timezone
+from typing import List
 from urllib.parse import urljoin, urlparse
 
 from orc_api.database import get_session
 from orc_api import crud
 from orc_api.db.video import Video
 
-
+def find_closest_timeseries_orc(t: datetime, max_dt: timedelta = timedelta(minutes=15), load_video=True):
+    """Find closest time series record to provided datetime with a timedelta tolerance."""
+    # open a ORC-OS database session
+    with get_session() as session:
+        # get all time series that are within the allowed time span
+        time_series = crud.time_series.get_list(
+            session,
+            start=t - max_dt,
+            stop=t + max_dt,
+        )
+        if len(time_series) == 1:
+            # a unique record was found, return that
+            ts = time_series[0]
+        elif len(time_series) > 1:
+            # more records were found, we need to find the single closest record and return that.
+            # find closest and return that
+            closest = min(time_series, key=lambda r: abs(r.timestamp.replace(tzinfo=timezone.utc) - t))
+            ts = closest
+        else:
+            ts = None
+        if ts and load_video:
+            # attach video instance by accessing it while the session is still open
+            ts.video = ts.video
+        return ts
 
 def parse_time_from_url(url, prefix="video_", suffix=".mp4"):
     """Retrieve datetime from url"""
@@ -69,7 +93,7 @@ def download_video(base_url: str, bucket: str, name: str, target_dir: str):
     print(f"File downloaded to {fn}")
     return fn
 
-def scan_orc_video(name):
+def scan_orc_video(name) -> List[str]:
     """check Video table of ORC-OS for the substring, return records."""
     # first get the last part
     fn = os.path.basename(name)
