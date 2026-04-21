@@ -5,6 +5,7 @@ import requests
 from datetime import datetime, timedelta
 from urllib.parse import urljoin, urlparse
 
+from utils import parse_time_from_url
 
 class ApterraApi:
     def __init__(self, base_url, api_key):

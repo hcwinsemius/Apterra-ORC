@@ -3,7 +3,7 @@
 import os
 import requests
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urljoin, urlparse
 
 from orc_api.database import get_session
@@ -21,7 +21,7 @@ def parse_time_from_url(url, prefix="video_", suffix=".mp4"):
         # apparently a datetime string is used
         t = datetime.strptime(timestr, "%Y%m%d_%H%M%S")
     else:
-        t = datetime.fromtimestamp(float(timestr))
+        t = datetime.fromtimestamp(float(timestr), timezone.utc)
     return t
 
     
