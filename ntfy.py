@@ -70,7 +70,7 @@ def post_message(q1, q2, q3, topic, t: datetime, loc: str, q: float, h: float, v
     if template:
         img_fn = get_image_from_video(video_id) if video_id is not None else None
         if img_fn:
-            img = read_image_as_bytes(img_fn, width=200)
+            img = read_image_as_bytes(img_fn, width=1080)
         else:
             img = None
         msg = template(t=t_str, location=loc, q=q, h=h, video_link=video_link)
