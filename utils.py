@@ -1,15 +1,46 @@
 """Utility and helper functions to exchange data between Apterra and ORc-OS."""
 
+import io
 import os
 import requests
 
+from PIL import Image
+
 from datetime import datetime, timedelta, timezone
-from typing import List
+from typing import List, Optional
 from urllib.parse import urljoin, urlparse
 
 from orc_api.database import get_session
 from orc_api import crud
 from orc_api.db.video import Video
+from orc_api.schemas.video import VideoResponse
+from orc_api import UPLOAD_DIRECTORY
+
+def get_image_from_video(video_id: int, width=1080) -> str:
+    """Retrieve the image or None as in-memory bytes object"""
+    with get_session() as session:
+        video = crud.video.get(session, video_id)
+        if video and video.image:
+            # get the file as VideoResponse
+            video = VideoResponse.model_validate(video)
+            fn = video.get_image_file(base_path=UPLOAD_DIRECTORY)
+            return fn
+
+def read_image_as_bytes(fn: str, width: int = 1080) -> bytes:
+    img = Image.open(fn)
+    # scale to a nice small scale for smartphone display, we keep the aspect ratio intact
+    wpercent = min(width / float(img.size[0]), 1.0)
+    if wpercent < 1.0:
+        # shrink!
+        height = int((float(img.size[1]) * float(wpercent)))
+        img = img.resize((width, height), Image.Resampling.LANCZOS)
+    # save to in-memory bytes
+    img_bytes = io.BytesIO()
+    img.save(img_bytes, format='JPEG')
+    img_bytes.seek(0)
+    return img_bytes.read()
+
+
 
 def find_closest_timeseries_orc(t: datetime, max_dt: timedelta = timedelta(minutes=15), load_video=True):
     """Find closest time series record to provided datetime with a timedelta tolerance."""

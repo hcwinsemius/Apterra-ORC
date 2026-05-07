@@ -7,6 +7,12 @@ from typing import Optional
 from datetime import datetime, timedelta, timezone
 from utils import *
 
+class PRIORITY:
+    minimum = 1
+    low = 2
+    default = 3
+    high = 4
+    maximum = 5
 # Parameters, to be set on front end
 # Q1 = 1.0
 # Q2 = 15.0
@@ -15,34 +21,62 @@ from utils import *
 # LOCATION = "Kilembe"
 # INTERVAL = 900
 
-def post_notify(base_url: str = "https://ntfy.sh", topic: Optional[str] = None, msg: Optional[str] = None):
+def post_notify(
+        base_url: str = "https://ntfy.sh",
+        topic: Optional[str] = None,
+        msg: Optional[str] = None,
+        priority=PRIORITY.default,
+        image: Optional[bytes] = None
+    ) -> None:
     """Send a ntfy.sh message."""
     url = urljoin(base_url, topic)
+    
     msg_enc = msg.encode(encoding="utf-8")
+    headers = {
+        "X-Priority": str(priority),
+    }
+    if image:
+        url_image = url + "-image"
+        print("Uploading image to ntfy.sh", flush=True)
+        r = requests.put(url_image, data=image)
+        image_url = r.json()["attachment"]["url"]
+        print("Image uploaded, url: ", image_url, flush=True)
+        headers["Attach"] = image_url
+    print("Posting message to NTFY.sh", flush=True)
     requests.post(
         url,
-        data=msg_enc
+        data=msg_enc,
+        headers=headers,
     )
+    print("Message posted successfully", flush=True)
 
-def post_message(q1, q2, q3, topic, t: datetime, loc: str, q: float, h: float, video_link: str) -> None:
+def post_message(q1, q2, q3, topic, t: datetime, loc: str, q: float, h: float, video_link: str, video_id: Optional[int] = None) -> None:
     """Make a message dependent on discharge thresholds exceeded or not, and post in ntfy channel."""
     if q3 is not None and q >= q3:
         print("Warning level DANGER exceeded, sending notification...")
+        priority = PRIORITY.maximum
         template = orc_danger_msg_template
     elif q2 is not None and q >= q2:
         print("Warning level CAUTION exceeded, sending notification...")
+        priority = PRIORITY.high
         template = orc_caution_msg_template
     elif q1 is not None and q >= q1:
+        priority = PRIORITY.default
         print("Warning level NOTE exceeded, sending notification...")
         template = orc_notification_template
     else:
         template = None
     t_str = t.strftime("%Y-%m-%dT%H:%M:%S+00:00")
     if template:
+        img_fn = get_image_from_video(video_id) if video_id is not None else None
+        if img_fn:
+            img = read_image_as_bytes(img_fn, width=200)
+        else:
+            img = None
         msg = template(t=t_str, location=loc, q=q, h=h, video_link=video_link)
         # push to ntfy
         # print(msg)
-        post_notify(topic=topic, msg=msg)
+        post_notify(topic=topic, msg=msg, priority=priority, image=img)
 
 def get_msg_fields(ts, loc: str) -> dict:
     """Create a set of fields to pass to ntfy messenger."""
@@ -50,7 +84,7 @@ def get_msg_fields(ts, loc: str) -> dict:
     with get_session() as session:
         # get the callback url to form the video_link
         cb = crud.callback_url.get(session)
-        if cb:
+        if cb and ts.video and ts.video.remote_id:
             url = cb.url
             site_id = cb.remote_site_id
             video_link = f"{url}admin/api/video/{ts.video.remote_id}/"
@@ -67,6 +101,7 @@ def get_msg_fields(ts, loc: str) -> dict:
         "loc": loc,
         "q": q,
         "h": h,
+        "video_id": ts.video.id if ts.video else None,
         "video_link": video_link
     }
 
