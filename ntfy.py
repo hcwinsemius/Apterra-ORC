@@ -50,7 +50,8 @@ def get_msg_fields(ts, loc: str) -> dict:
     with get_session() as session:
         # get the callback url to form the video_link
         cb = crud.callback_url.get(session)
-        if cb:
+        # we can only provide a video link, if the time series has a video attached
+        if cb and ts.video:
             url = cb.url
             site_id = cb.remote_site_id
             video_link = f"{url}admin/api/video/{ts.video.remote_id}/"
